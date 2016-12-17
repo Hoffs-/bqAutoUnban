@@ -12,6 +12,7 @@ ITERATIONS_BETWEEN_MESSAGES = 5
 TIME_TO_SLEEP = 60
 LIVES_TO_GIVE = 2
 MESSAGE_FILE = "serverMessages.txt"
+BANNED_TIME = 3600
 
 class MessageSender():
 
@@ -92,7 +93,7 @@ class BannedPurger():
             uuid = BannedPurger.bDict[x][0]
             etime = BannedPurger.bDict[x][1]
             self.logWriter.write("[{3}][checkUsers] Checking user {0} with UUID {1}. Banned time {2}, current time {4}.\n".format(x, uuid, etime, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), int(calendar.timegm(time.gmtime()))))
-            if int(calendar.timegm(time.gmtime())) - BannedPurger.bDict[x][1] > 3600:
+            if int(calendar.timegm(time.gmtime())) - BannedPurger.bDict[x][1] > BANNED_TIME:
                 self.logWriter.write("[{3}][checkUsers] Removing ban for {0} with UUID {1}.\n".format(x, uuid, etime, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
                 print(BannedPurger.bDict[x][0],BannedPurger.bDict[x][1])
                 self.nbtManager.addLives(uuid, self.logWriter)
