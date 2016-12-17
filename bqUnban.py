@@ -8,6 +8,44 @@ import time
 
 # screen -S M -X stuff "pardon user ^M"
 
+ITERATIONS_BETWEEN_MESSAGES = 5
+TIME_TO_SLEEP = 60
+LIVES_TO_GIVE = 2
+MESSAGE_FILE = "serverMessages.txt"
+
+class MessageSender():
+
+    def __init__(self):
+        self.messageCount = 0
+        self.currentMessage = 0
+        self.messageSet = set()
+
+    def checkMessages(self):
+        fileLocation = MESSAGE_FILE
+        with open(fileLocation, 'r') as file:
+            for line in file:
+                if line not in self.messageSet:
+                    self.messageSet.add(line)
+        self.messageCount = len(self.messageSet)
+
+    def sendMessage(self):
+        messageString = "date"
+        counter = 0
+        for x in self.messageSet:
+            if self.currentMessage == counter:
+                while x[len(x)-1].isspace():
+                    x = x[:len(x)-1]
+                messageString = 'screen -S M -X stuff "say {0} ^M"'.format(x)
+                call(messageString, shell=True)
+                print(messageString)
+                self.currentMessage = self.currentMessage + 1
+                if self.currentMessage == self.messageCount:
+                    self.currentMessage = 0
+                break
+            else:
+                counter = counter + 1
+
+
 class NbtEditor():
 
     def addLives(self, uuid, logWriter):
@@ -15,7 +53,7 @@ class NbtEditor():
         nbtfile = nbt.NBTFile(fileLocation, 'rb')
         print(nbtfile['BQ_LIVES']['lives'])
         logWriter.write("[{2}][addLives] Adding lives for {0}. Current lives {1}.\n".format(uuid, nbtfile['BQ_LIVES']['lives'], time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
-        nbtfile['BQ_LIVES']['lives'].value = 2
+        nbtfile['BQ_LIVES']['lives'].value = LIVES_TO_GIVE
         logWriter.write("[{2}][addLives] Added lives for {0}. Current lives {1}.\n".format(uuid, nbtfile['BQ_LIVES']['lives'], time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
         nbtfile.write_file(fileLocation)
         logWriter.write("[{1}][addLives] Wrote to file with updated lives for {0}.\n".format(uuid, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
@@ -66,9 +104,18 @@ class BannedPurger():
 
 
 # Running part
+
+
 bParser = BannedPurger()
+mSender = MessageSender()
+mCounter = 0
 while 1:
     bParser.parseBanned()
     bParser.checkUsers()
     print("Sleeping...")
-    time.sleep(60)
+    time.sleep(TIME_TO_SLEEP)
+    mCounter = mCounter + 1
+    if mCounter == ITERATIONS_BETWEEN_MESSAGES:
+        mSender.checkMessages()
+        mSender.sendMessage()
+        mCounter = 0
