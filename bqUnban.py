@@ -58,7 +58,7 @@ class NbtEditor():
         logWriter.write("[{2}][addLives] Added lives for {0}. Current lives {1}.\n".format(uuid, nbtfile['BQ_LIVES']['lives'], time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
         nbtfile.write_file(fileLocation)
         logWriter.write("[{1}][addLives] Wrote to file with updated lives for {0}.\n".format(uuid, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
-
+        logWriter.flush()
 
 
 class BannedPurger():
@@ -67,6 +67,7 @@ class BannedPurger():
     def __init__(self):
         self.logWriter = open(BannedPurger.logFile, 'a')
         self.logWriter.write("[{0}][init] BannedPurger initialized and script started.\n".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
+        self.logWriter.flush()
         self.nbtManager = NbtEditor()
 
     def parseBanned(self):
@@ -85,7 +86,7 @@ class BannedPurger():
             if x['reason'] == "Death in Hardcore":
                 self.bDict[name]=[uuid, timeString]
                 self.logWriter.write("[{3}][parseBanned] Adding to dictionary: {0} {1} {2}.\n".format(name, uuid, timeString, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
-
+        self.logWriter.flush()
 
     def checkUsers(self):
         self.logWriter.write("[{0}][checkUsers] Checking for bans.\n".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
@@ -103,6 +104,7 @@ class BannedPurger():
                 self.logWriter.write("[{3}][checkUsers] Removed ban and added lives for {0} with UUID {1}.\n".format(x, uuid, etime, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
         self.logWriter.write("[{1}][checkUsers] Finished checkUsers. Current dictionary {0}.\n".format(self.bDict, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
         del self.bDict
+        self.logWriter.flush()
 
 
 # Running part
