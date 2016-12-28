@@ -144,6 +144,76 @@ class NbtEditor():
         logWriter.flush()
 
 
+class LocalBanned():
+    fileLocation = "banned-player-local.json"
+
+    def __init__(self):
+        if os.path.isfile(LocalBanned.fileLocation):
+            f = open(LocalBanned.fileLocation, 'r')
+            fileContents = f.read()
+            self.jsonFile = json.loads(fileContents)
+            f.close()
+        else:
+            f = open(LocalBanned.fileLocation, 'w')
+            f.write("[]")
+            f.flush()
+            f.close()
+            f = open(LocalBanned.fileLocation, 'r')
+            fileContents = f.read()
+            self.jsonFile = json.loads(fileContents)
+        print(self.jsonFile)
+
+    def addBanned(self, uuid, timestamp):
+        ob = {}
+        ob['uuid'] = uuid
+        ob['bantime'] = timestamp
+        self.jsonFile.append(ob)
+        self.writeFile()
+
+    def getBannedTime(self, uuid):
+        self.updateJson()
+        for x in self.jsonFile:
+            if x['uuid'] == uuid:
+                return x['bantime']
+        print("User not found? How could this happen... Returning 0")
+        return 0
+
+    def removeUser(self, uuid):
+        print("before removing user")
+        self.dumpJson()
+        newJ = []
+        for x in self.jsonFile:
+            if x['uuid'] != uuid:
+                newJ.append(x)
+                return
+        self.jsonFile = newJ
+        print("after removing")
+        self.dumpJson()
+        self.writeFile()
+
+    def updateJson(self):
+        f = open(LocalBanned.fileLocation, 'r')
+        fileContents = f.read()
+        self.jsonFile = json.loads(fileContents)
+        f.close()
+
+    def writeFile(self):
+        print("Before writing")
+        self.dumpJson()
+        f = open(LocalBanned.fileLocation, 'w')
+        f.write(json.dumps(self.jsonFile))
+        f.flush()
+        f.close()
+        self.updateJson()
+        print("After writing")
+        self.dumpJson()
+
+    def dumpJson(self):
+        print(self.jsonFile)
+
+    def getJson(self):
+        return self.jsonFile
+
 class BannedPurger():
     logFile = "unbanLog.log"
 
@@ -153,7 +223,7 @@ class BannedPurger():
         self.logWriter.flush()
         self.nbtManager = NbtEditor()
 
-    def parseBanned(self, bCounter):
+    def parseBanned(self, bCounter, localBans):
         self.bDict = dict()
         self.logWriter.write("[{1}][parseBanned] Parsing banned JSON. Current dictionary {0}.\n".format(self.bDict, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
         fileLocation = "banned-players.json"
@@ -167,10 +237,13 @@ class BannedPurger():
             timeString = x['created']
             timeString = int(time.mktime((datetime.strptime(timeString, "%Y-%m-%d %H:%M:%S %z")).timetuple()))
             if x['reason'].startswith("Death in Hardcore"):
+                if x['reason'] == "Death in Hardcore":
+                    self.logWriter.write("[{3}][parseBanned] Adding user to local ban list: {0} {1} {2}.\n".format(name, uuid, timeString, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
+                    localBans.addBanned(uuid, timeString)
                 self.bDict[name]=[uuid, timeString]
                 self.logWriter.write("[{3}][parseBanned] Adding to dictionary: {0} {1} {2}.\n".format(name, uuid, timeString, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
                 banHours = (bCounter.checkDeaths(uuid) + 1) * 7200
-                timePassed = int(calendar.timegm(time.gmtime())) - timeString
+                timePassed = int(calendar.timegm(time.gmtime())) - localBans.getBannedTime(uuid)
                 m, s = divmod(banHours - timePassed, 60)
                 h, m = divmod(m, 60)
                 banString = 'screen -S M -X stuff "ban {0} Death in Hardcore. You are still banned for {1} hours {2} minutes.^M"'.format(name, h, m)
@@ -179,22 +252,35 @@ class BannedPurger():
                 self.logWriter.write("[{3}][parseBanned] Sending to screen: {0}.\n".format(banString, uuid, timeString, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
         self.logWriter.flush()
 
-    def checkUsers(self, bCounter):
+        js = localBans.getJson()
+        print(js)
+        for x in js:
+            chk = 1
+            for j in fileJson:
+                if j['uuid'] == x['uuid']:
+                    chk = 0
+                    break
+            if chk == 1:
+                print("UUID not found: ", x['uuid'])
+                localBans.removeUser(x['uuid'])
+
+
+    def checkUsers(self, bCounter, localBans):
         self.logWriter.write("[{0}][checkUsers] Checking for bans.\n".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
         for x in self.bDict:
             uuid = self.bDict[x][0]
-            etime = self.bDict[x][1]
-            self.logWriter.write("[{3}][checkUsers] Checking user {0} with UUID {1}. Banned time {2}, current time {4}.\n".format(x, uuid, etime, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), int(calendar.timegm(time.gmtime()))))
+            self.logWriter.write("[{3}][checkUsers] Checking user {0} with UUID {1}. Banned time {2}, current time {4}.\n".format(x, uuid, localBans.getBannedTime(uuid), time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), int(calendar.timegm(time.gmtime()))))
             bannedTime = (bCounter.checkDeaths(uuid) + 1) * 7200
-            if int(calendar.timegm(time.gmtime())) - self.bDict[x][1] > bannedTime:
+            if int(calendar.timegm(time.gmtime())) - localBans.getBannedTime(uuid) > bannedTime:
                 bCounter.addDeath(uuid)
-                self.logWriter.write("[{3}][checkUsers] Removing ban for {0} with UUID {1}.\n".format(x, uuid, etime, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
+                localBans.removeUser(uuid)
+                self.logWriter.write("[{2}][checkUsers] Removing ban for {0} with UUID {1}.\n".format(x, uuid, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
                 print(self.bDict[x][0], self.bDict[x][1])
                 self.nbtManager.addLives(uuid, self.logWriter)
                 unbanString = 'screen -S M -X stuff "pardon {0} ^M"'.format(x)
                 self.logWriter.write("[{1}][checkUsers] Trying to unban with string: {0}.\n".format(unbanString, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
                 call(unbanString, shell=True)
-                self.logWriter.write("[{3}][checkUsers] Removed ban and added lives for {0} with UUID {1}.\n".format(x, uuid, etime, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
+                self.logWriter.write("[{2}][checkUsers] Removed ban and added lives for {0} with UUID {1}.\n".format(x, uuid, time.localtime()))
         self.logWriter.write("[{1}][checkUsers] Finished checkUsers. Current dictionary {0}.\n".format(self.bDict, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
         del self.bDict
         self.logWriter.flush()
@@ -206,11 +292,12 @@ class BannedPurger():
 bParser = BannedPurger()
 mSender = MessageSender()
 bCounter = BanCounter()
+lBanned = LocalBanned()
 mCounter = 0
 while 1:
     bCounter.updateJson()
-    bParser.parseBanned(bCounter)
-    bParser.checkUsers(bCounter)
+    bParser.parseBanned(bCounter, lBanned)
+    bParser.checkUsers(bCounter, lBanned)
     print("Sleeping...")
     time.sleep(TIME_TO_SLEEP)
     mCounter = mCounter + 1
