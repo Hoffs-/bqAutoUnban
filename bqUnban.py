@@ -88,6 +88,7 @@ class BanCounter():
         f = open(BAN_LIST_FILE, 'w')
         f.write(json.dumps(self.banJson))
         f.close()
+        self.updateJson()
 
     def updateJson(self):
         f = open(BAN_LIST_FILE, 'r')
@@ -167,34 +168,31 @@ class BannedPurger():
             timeString = x['created']
             timeString = int(time.mktime((datetime.strptime(timeString, "%Y-%m-%d %H:%M:%S %z")).timetuple()))
             if x['reason'].startswith("Death in Hardcore"):
+                if x['reason'] == "Death in Hardcore":
+                    banHours = (bCounter.checkDeaths(uuid) + 1) * 7200
+                    banString = 'screen -S M -X stuff "ban {0} Death in Hardcore. You are banned for {1} hours.^M"'.format(name, int(banHours/3600))
+                    call(banString, shell=True)
+                    print(banString)
+                    self.logWriter.write("[{3}][parseBanned] Sending to screen: {0}.\n".format(banString, uuid, timeString, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
                 self.bDict[name]=[uuid, timeString]
                 self.logWriter.write("[{3}][parseBanned] Adding to dictionary: {0} {1} {2}.\n".format(name, uuid, timeString, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
-                banHours = (bCounter.checkDeaths(uuid) + 1) * 7200
-                timePassed = int(calendar.timegm(time.gmtime())) - timeString
-                m, s = divmod(banHours - timePassed, 60)
-                h, m = divmod(m, 60)
-                banString = 'screen -S M -X stuff "ban {0} Death in Hardcore. You are still banned for {1} hours {2} minutes.^M"'.format(name, h, m)
-                call(banString, shell=True)
-                print(banString)
-                self.logWriter.write("[{3}][parseBanned] Sending to screen: {0}.\n".format(banString, uuid, timeString, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
         self.logWriter.flush()
 
     def checkUsers(self, bCounter):
         self.logWriter.write("[{0}][checkUsers] Checking for bans.\n".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
         for x in self.bDict:
             uuid = self.bDict[x][0]
-            etime = self.bDict[x][1]
-            self.logWriter.write("[{3}][checkUsers] Checking user {0} with UUID {1}. Banned time {2}, current time {4}.\n".format(x, uuid, etime, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), int(calendar.timegm(time.gmtime()))))
+            self.logWriter.write("[{3}][checkUsers] Checking user {0} with UUID {1}. Banned time {2}, current time {4}.\n".format(x, uuid, self.bDict[x][1], time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()), int(calendar.timegm(time.gmtime()))))
             bannedTime = (bCounter.checkDeaths(uuid) + 1) * 7200
             if int(calendar.timegm(time.gmtime())) - self.bDict[x][1] > bannedTime:
                 bCounter.addDeath(uuid)
-                self.logWriter.write("[{3}][checkUsers] Removing ban for {0} with UUID {1}.\n".format(x, uuid, etime, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
+                self.logWriter.write("[{2}][checkUsers] Removing ban for {0} with UUID {1}.\n".format(x, uuid, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
                 print(self.bDict[x][0], self.bDict[x][1])
                 self.nbtManager.addLives(uuid, self.logWriter)
                 unbanString = 'screen -S M -X stuff "pardon {0} ^M"'.format(x)
                 self.logWriter.write("[{1}][checkUsers] Trying to unban with string: {0}.\n".format(unbanString, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
                 call(unbanString, shell=True)
-                self.logWriter.write("[{3}][checkUsers] Removed ban and added lives for {0} with UUID {1}.\n".format(x, uuid, etime, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
+                self.logWriter.write("[{2}][checkUsers] Removed ban and added lives for {0} with UUID {1}.\n".format(x, uuid, time.localtime()))
         self.logWriter.write("[{1}][checkUsers] Finished checkUsers. Current dictionary {0}.\n".format(self.bDict, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())))
         del self.bDict
         self.logWriter.flush()
